@@ -7,7 +7,7 @@ public class PlayAsElfTest
 {
 	public static void main(String[] args) throws Exception
 	{
-		ExternalPluginManager.loadBuiltin(ExamplePlugin.class);
+		ExternalPluginManager.loadBuiltin(PlayAsElfPlugin.class);
 		RuneLite.main(args);
 	}
 }

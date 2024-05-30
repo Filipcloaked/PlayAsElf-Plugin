@@ -4,8 +4,9 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 
-@ConfigGroup("example")
-public interface ExampleConfig extends Config
+
+@ConfigGroup("playaself")
+public interface PlayAsElfConfig extends Config
 {
 	@ConfigItem(
 		keyName = "greeting",
@@ -15,5 +16,15 @@ public interface ExampleConfig extends Config
 	default String greeting()
 	{
 		return "Hello";
+	}
+
+	@ConfigItem(
+			keyName = "selectedGender",
+			name = "Select Gender",
+			description = "Choose your gender"
+	)
+	default Gender setGender()
+	{
+		return Gender.MALE;
 	}
 }
