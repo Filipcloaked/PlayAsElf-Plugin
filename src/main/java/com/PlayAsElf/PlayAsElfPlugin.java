@@ -21,6 +21,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
@@ -46,9 +48,8 @@ public class PlayAsElfPlugin extends Plugin
 	OkHttpClient httpClient;
 
 	private RuneLiteObject elfBodyRlObj;
-	private ModelData elfHeadModel;
 
-	private int[] modelIds;
+	private boolean headTranslated;
 
 	@Override
 	protected void startUp() throws Exception
@@ -218,36 +219,68 @@ public class PlayAsElfPlugin extends Plugin
 				Type listType = new TypeToken<List<ItemData>>(){}.getType();
 				List<ItemData> posts = gson.fromJson(reader, listType);
 
-				// Setup up model IDs
-				modelIds = new int[0];
-				int offset = 0;
+				// Setup up model data
+				ArrayList<FetchedModelInfo> fetchedModelInfos = new ArrayList<>();
+
 
 				// Search through all items to find equips
 				for (int itemID : equipIds)
 				{
+					// Get Model Ids for our equipped items
 					if (itemID >= 0)
 					{
 						for (ItemData itemData : posts)
 						{
 							if (itemData.getId() == itemID)
 							{
+								//FetchedModelInfo newFetchedModelInfo;
+								int[] modelIds = new int[0];
+
 								if (male)
 								{
 									modelIds = ArrayUtils.addAll(modelIds, itemData.getMaleModel0(), itemData.getMaleModel1(), itemData.getMaleModel2());
-									offset = itemData.getMaleOffset();
 								}
 								else
 								{
-									modelIds = ArrayUtils.addAll(modelIds, itemData.getFemaleModel0(), itemData.getFemaleModel1(), itemData.getFemaleModel2());
-									offset = itemData.getFemaleOffset();
+									modelIds = ArrayUtils.addAll(modelIds, itemData.getMaleModel0(), itemData.getMaleModel1(), itemData.getMaleModel2());
 								}
+
+								short[] rf = new short[0];
+								short[] rt = new short[0];
+
+								if (itemData.getColorReplace() != null)
+								{
+									int[] recolorToReplace = itemData.getColorReplace();
+									int[] recolorToFind = itemData.getColorFind();
+									rf = new short[recolorToReplace.length];
+									rt = new short[recolorToReplace.length];
+
+									for (int e = 0; e < rf.length; e++)
+									{
+										int rfi = recolorToFind[e];
+										if (rfi > 32767)
+										{
+											rfi -= 65536;
+										}
+										rf[e] = (short) rfi;
+
+										int rti = recolorToReplace[e];
+										if (rti > 32767)
+										{
+											rti -= 65536;
+										}
+										rt[e] = (short) rti;
+									}
+								}
+
+								fetchedModelInfos.add(new FetchedModelInfo(modelIds, rf, rt));
+
 							}
 						}
 					}
 				}
 
-				CombineAndCreateElfBody();
-
+				CombineAndCreateElfBody(fetchedModelInfos);
 				countDownLatch.countDown();
 				response.body().close();
 			}
@@ -264,24 +297,35 @@ public class PlayAsElfPlugin extends Plugin
 
 	}
 
-	private void CombineAndCreateElfBody()
+	private void CombineAndCreateElfBody(ArrayList<FetchedModelInfo> fetchedModelInfos)
 	{
 		clientThread.invokeLater(() ->
 		{
 			ModelData[] loadedModels = new ModelData[0];
 
-			for (int modelId : modelIds)
+			for (FetchedModelInfo fetchedModelInfo : fetchedModelInfos)
 			{
-				if (modelId >= 0)
+				for (int modelId : fetchedModelInfo.getModelIds())
 				{
-					log.info("LOADING MODEL: " + modelId);
-					loadedModels = ArrayUtils.add(loadedModels, client.loadModelData(modelId));
-				}
+					if (modelId >= 0)
+					{
+						log.info("LOADING MODEL: " + modelId);
+						loadedModels = ArrayUtils.add(loadedModels, client.loadModelData(modelId));
+					}
 
+				}
 			}
 
-			elfHeadModel = client.loadModelData(38049);
-			elfHeadModel.translate(0, 3, -7);
+			ModelData elfHeadModel = client.loadModelData(38049);
+			//Need to somehow reset the translation here
+
+			if (!headTranslated)
+			{
+				elfHeadModel.translate(0, 7, -5);
+				headTranslated = true;
+			}
+
+			elfHeadModel = ColorElfHead(elfHeadModel);
 
 			loadedModels = ArrayUtils.add(loadedModels, elfHeadModel);
 
@@ -294,6 +338,33 @@ public class PlayAsElfPlugin extends Plugin
 			log.info("finished setting model");
 		});
 
+	}
+
+	private ModelData ColorElfHead(ModelData elfHeadModelData)
+	{
+		short c1 = 4308;
+		short c2 = 5673;
+		elfHeadModelData.recolor(c1, c2);
+		c1 = 4304;
+		c2 = 5673;
+		elfHeadModelData.recolor(c1, c2);
+		c1 = 4300;
+		c2 = 5673;
+		elfHeadModelData.recolor(c1, c2);
+		c1 = -28119;
+		c2 = 5465;
+		elfHeadModelData.recolor(c1, c2);
+		c1 = 17061;
+		c2 = 5465;
+		elfHeadModelData.recolor(c1, c2);
+		c1 = 2578;
+		c2 = 5673;
+		elfHeadModelData.recolor(c1, c2);
+		c1 = 2454;
+		c2 = 5673;
+		elfHeadModelData.recolor(c1, c2);
+
+		return elfHeadModelData;
 	}
 
 	@Provides

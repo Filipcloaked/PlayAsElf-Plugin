@@ -27,4 +27,5 @@ public interface PlayAsElfConfig extends Config
 	{
 		return Gender.MALE;
 	}
+
 }
