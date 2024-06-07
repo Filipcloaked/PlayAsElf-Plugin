@@ -28,4 +28,13 @@ public interface PlayAsElfConfig extends Config
 		return Gender.MALE;
 	}
 
+	@ConfigItem(
+			keyName = "headRenderPrio",
+			name = "Head Render Prio",
+			description = ""
+	)
+	default int setHeadRenderPrio()
+	{
+		return 10;
+	}
 }

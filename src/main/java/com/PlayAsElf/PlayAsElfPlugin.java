@@ -51,6 +51,8 @@ public class PlayAsElfPlugin extends Plugin
 
 	private boolean headTranslated;
 
+	private int[] oldEquipIds;
+
 	@Override
 	protected void startUp() throws Exception
 	{
@@ -68,11 +70,21 @@ public class PlayAsElfPlugin extends Plugin
 	{
 		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
 		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.greeting(), null);
 
-			// todo Need a better spot for this
-			elfBodyRlObj = client.createRuneLiteObject();
+			if (elfBodyRlObj != null)
+			{
+				if (!elfBodyRlObj.isActive())
+				{
+					elfBodyRlObj.setActive(false);
+					elfBodyRlObj.setActive(true);
+				}
+			}
+			else
+			{
+				elfBodyRlObj = client.createRuneLiteObject();
+			}
 		}
+
 	}
 
 	@Subscribe
@@ -97,7 +109,7 @@ public class PlayAsElfPlugin extends Plugin
 			int handsID = playerComposition.getEquipmentId(KitType.HANDS);
 			int bootsID = playerComposition.getEquipmentId(KitType.BOOTS);
 
-			int[] equipIds = {
+			int[] newEquipIds = {
 				capeID,
 				amuletID,
 				weaponID,
@@ -110,8 +122,24 @@ public class PlayAsElfPlugin extends Plugin
 			};
 
 
+			// Check if we have certain slots without armor
+			//int kitTorsoID
 
-			CreatePlayerModelCopy(equipIds, true);
+			//log.info("CHEST ID: " + torsoID);
+			//log.info("KIT CHEST ID: " + playerComposition.getKitId(KitType.TORSO));
+
+			for (int color : playerComposition.getColors())
+			{
+				log.info("KIT COLOR: " + color);
+			}
+
+			//todo for kit ids: lines 155 ModelFinder.java
+
+			if (!Arrays.equals(newEquipIds, oldEquipIds))
+			{
+				CreatePlayerModelCopy(newEquipIds, true);
+				oldEquipIds = newEquipIds;
+			}
 
         }
 	}
@@ -150,16 +178,18 @@ public class PlayAsElfPlugin extends Plugin
 		int playerPose = player.getPoseAnimation();
 		Animation animation = elfBodyRlObj.getAnimation();
 
-		int elfheadAnim = -1;
+		int elfBodyAnim = -1;
 		if (animation != null)
-			elfheadAnim = animation.getId();
+			elfBodyAnim = animation.getId();
 
 		if (playerAnimation == -1)
 		{
-			//need this to somehow be way faster and to match the speed at which the player anim goes
-			if (elfheadAnim != playerPose)
-				elfBodyRlObj.setAnimation(client.loadAnimation(playerPose));
-
+			if (elfBodyAnim != playerPose)
+			{
+				Animation poseAnim = client.loadAnimation(playerPose);
+				elfBodyRlObj.setAnimation(poseAnim);
+				elfBodyRlObj.setShouldLoop(true);
+			}
 		}
 
 	}
@@ -294,7 +324,6 @@ public class PlayAsElfPlugin extends Plugin
 		{
 			log.debug("CountDownLatch failed to wait at findModelsForPlayers");
 		}
-
 	}
 
 	private void CombineAndCreateElfBody(ArrayList<FetchedModelInfo> fetchedModelInfos)
@@ -303,23 +332,9 @@ public class PlayAsElfPlugin extends Plugin
 		{
 			ModelData[] loadedModels = new ModelData[0];
 
-			for (FetchedModelInfo fetchedModelInfo : fetchedModelInfos)
-			{
-				for (int modelId : fetchedModelInfo.getModelIds())
-				{
-					if (modelId >= 0)
-					{
-						log.info("LOADING MODEL: " + modelId);
-						loadedModels = ArrayUtils.add(loadedModels, client.loadModelData(modelId));
-					}
-
-				}
-			}
-
 			ModelData elfHeadModel = client.loadModelData(38049);
-			//Need to somehow reset the translation here
 
-			if (!headTranslated)
+			if (!headTranslated) // might be a better way to deal with this
 			{
 				elfHeadModel.translate(0, 7, -5);
 				headTranslated = true;
@@ -329,9 +344,54 @@ public class PlayAsElfPlugin extends Plugin
 
 			loadedModels = ArrayUtils.add(loadedModels, elfHeadModel);
 
+			for (FetchedModelInfo fetchedModelInfo : fetchedModelInfos)
+			{
+				for (int modelId : fetchedModelInfo.getModelIds())
+				{
+					if (modelId >= 0)
+					{
+						//log.info("LOADING MODEL: " + modelId);
+						ModelData newModel = client.loadModelData(modelId);
+
+						short defaultSkinColor = 4550;
+
+						//todo replace skin color with a config skin color value later on
+						short testColorToReplace = 5673;
+
+						// If an armor piece contains the default skin color, replace it with the player's
+						// chosen skin color
+						if (ArrayUtils.contains(newModel.getFaceColors(), defaultSkinColor))
+						{
+							newModel.cloneColors();
+							newModel.recolor(defaultSkinColor, testColorToReplace);
+						}
+
+						// If an armor has colors to replace apply it here
+						if (fetchedModelInfo.getRecolorFrom().length > 0)
+						{
+							for (int i = 0; i < fetchedModelInfo.getRecolorFrom().length; i++)
+							{
+								newModel.recolor(fetchedModelInfo.getRecolorFrom()[i], fetchedModelInfo.getRecolorTo()[i]);
+							}
+						}
+
+						loadedModels = ArrayUtils.add(loadedModels, newModel);
+					}
+				}
+			}
+
 			ModelData combinedElfBodyData = client.mergeModels(loadedModels);
 
 			Model combinedElfBodyModel = combinedElfBodyData.light();
+
+			byte[] renderPriorities = combinedElfBodyModel.getFaceRenderPriorities();
+
+			if (renderPriorities != null && renderPriorities.length > 0)
+			{
+				//10 is best prio for head, however cape is still having render issues with it
+				Arrays.fill(renderPriorities, 0, elfHeadModel.getFaceCount()-1, (byte) config.setHeadRenderPrio());
+
+			}
 
 			elfBodyRlObj.setModel(combinedElfBodyModel);
 
@@ -342,6 +402,8 @@ public class PlayAsElfPlugin extends Plugin
 
 	private ModelData ColorElfHead(ModelData elfHeadModelData)
 	{
+		elfHeadModelData.cloneColors();
+
 		short c1 = 4308;
 		short c2 = 5673;
 		elfHeadModelData.recolor(c1, c2);
