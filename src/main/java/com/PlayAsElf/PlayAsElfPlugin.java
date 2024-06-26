@@ -131,6 +131,7 @@ public class PlayAsElfPlugin extends Plugin
 			if (!Arrays.equals(newEquipIds, oldEquipIds) || !Arrays.equals(newKitIds, oldKitIds))
 			{
 				//todo either remove male or get it from playercomp
+				//todo make sure female kit models work
 				playerModelCreator.CreatePlayerModelCopy(newEquipIds, newKitIds, true, elfBodyRlObj);
 				oldEquipIds = newEquipIds;
 				oldKitIds = newKitIds;
